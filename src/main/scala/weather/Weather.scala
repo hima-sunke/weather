@@ -1,10 +1,9 @@
 package weather
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{Column, DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.Column
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.expressions.WindowSpec
 
@@ -18,7 +17,7 @@ import scala.io.Source
 
 
 
-/** A raw stackoverflow posting, either a question or an answer */
+// Structure to capture the weather data of the stations
 case class WeatherData(station : String, year: Int, month: Int, tmax: Option[Double], tmin: Option[Double], af: Option[Int], rain: Option[Double], sunshine: Option[Double]) extends Serializable
 
 
@@ -34,72 +33,70 @@ object app extends Weather {
   import spark.implicits._
 
 
-
- // @transient lazy val conf: SparkConf = new SparkConf().setMaster("local").setAppName("app")
-  //@transient lazy val sc: SparkContext = new SparkContext(conf)
-
-  /** Main function */
+  /** Main function  */
   def main(args: Array[String]): Unit = {
-    // FileWriter
+
 
       FileUtils.deleteDirectory(new File("/Users/omprakash/IdeaProjects/src/main/resources/original/*"))
       FileUtils.deleteDirectory(new File("/Users/omprakash/IdeaProjects/src/main/resources/modified/*"))
 
 
-     for (station <- stations){
+     createOriginalAndModifiedData
 
-       new URL("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/"+station+"data.txt") #> new File("/Users/omprakash/IdeaProjects/src/main/resources/original/"+station+"data.txt") !!
+    val datasetAsString   = spark.read.textFile(s"/Users/omprakash/IdeaProjects/src/main/resources/modified/*").as[String]
+    val datasetAsWeatherData    = convertToWeatherData(datasetAsString.rdd)
+    val dataFrame = datasetAsWeatherData.toDF()
 
-       val file = new File("/Users/omprakash/IdeaProjects/src/main/resources/modified/"+station+"data.txt")
-       val bw = new BufferedWriter(new FileWriter(file))
-       for (line <- Source.fromFile(s"/Users/omprakash/IdeaProjects/src/main/resources/original/"+station+"data.txt").getLines.drop(1)) {
-         if(line.contains("Location") || line.contains("Estimated") || line.contains("Missing") || line.contains("Sunshine") ||
-           line.contains("yyyy") || line.contains("Lat") || line.contains("degC") || line.contains("Site closed") || line.contains("Site Closed")|| line.contains("Siteclosed")){
-
-         } else {
-           val regex = "\\s+".r
-           bw.write(station)
-           bw.write(",")
-           bw.write(regex.replaceAllIn(line.replaceAll("Change to Monckton Ave", ""), ",").replaceFirst(",", "").replaceAll("\\*", "").replaceAll("\\#", ""))
-           //bw.write(regex.replaceAllIn(line, ",").replaceFirst(",", "").replaceAll("\\*", "").replaceAll("\\#", ""))
-           bw.newLine()
-         }
-
-       }
-       bw.close()
-     }
-
-    val lines   = spark.read.textFile(s"/Users/omprakash/IdeaProjects/src/main/resources/modified/*").as[String]
-    val raw    = rawPostings(lines.rdd)
-    val df = raw.toDF()
-
-    /*val df1 = df.groupBy($"station").agg(count($"station").alias("totalMeasures")).select($"*")
-    val rankTest1 = df1.withColumn("rank",rank().over(Window.orderBy($"totalMeasures".desc))).show()
+    rankByMeasures(dataFrame)
 
 
-    val df2 = df.groupBy($"station").agg(avg($"rain").alias("avgRain")).select($"*")
-    val rankTest2 = df2.withColumn("rank",rank().over(Window.orderBy($"avgRain".desc))).show()
+    rankByAverageRain(dataFrame)
 
-    val df3 = df.groupBy($"station").agg(avg($"sunshine").alias("avgSun")).select($"*")
+    val df3 = dataFrame.groupBy($"station").agg(avg($"sunshine").alias("avgSun")).select($"*")
     val rankTest3 = df3.withColumn("rank",rank().over(Window.orderBy($"avgSun".desc))).show()
 
-    val df4 = df.groupBy($"station").agg(min($"rain").alias("rain")).select($"*")
-    val data_joined = df.join(df4, List("station", "rain")).show()*/
+    val df4 = dataFrame.groupBy($"station").agg(min($"rain").alias("rain")).select($"*")
+    val data_joined = dataFrame.join(df4, List("station", "rain")).show()
 
 
-    val df5 = df.groupBy($"month").agg(avg($"rain").alias("rain"),avg($"sunshine").alias("sunshine")).where($"month" === 5).select($"*").show()
-
-
-    //df.select($"station", rankTest as "rank").show*/
-    /*df.withColumn("totalMeasures", count($"station")).groupBy($"station")
-    val partitionByStation = Window.partitionBy($"station")
-
-    df.withColumn("totalMeasures", count($"station")).show()
-    //val rankTest = rank().over((partitionByStation))
-    //df.select($"station", rankTest as "rank").show*/
+    val df5 = dataFrame.groupBy($"month").agg(avg($"rain").alias("rain"),avg($"sunshine").alias("sunshine")).where($"month" === 5).select($"*").show()
 
 
     spark.stop()
+  }
+
+  private def rankByAverageRain(dataFrame: DataFrame) = {
+    val df2 = dataFrame.groupBy($"station").agg(avg($"rain").alias("avgRain")).select($"*")
+    val rankTest2 = df2.withColumn("rank", rank().over(Window.orderBy($"avgRain".desc))).show()
+  }
+
+  private def rankByMeasures(dataFrame: DataFrame) = {
+    val df1 = dataFrame.groupBy($"station").agg(count($"station").alias("totalMeasures")).select($"*")
+    val rankTest1 = df1.withColumn("rank", rank().over(Window.orderBy($"totalMeasures".desc))).show()
+  }
+
+  private def createOriginalAndModifiedData = {
+    for (station <- stations) {
+
+      new URL("https://www.metoffice.gov.uk/pub/data/weather/uk/climate/stationdata/" + station + "data.txt") #> new File("/Users/omprakash/IdeaProjects/src/main/resources/original/" + station + "data.txt") !!
+
+      val file = new File("/Users/omprakash/IdeaProjects/src/main/resources/modified/" + station + "data.txt")
+      val bw = new BufferedWriter(new FileWriter(file))
+      for (line <- Source.fromFile(s"/Users/omprakash/IdeaProjects/src/main/resources/original/" + station + "data.txt").getLines.drop(1)) {
+        if (line.contains("Location") || line.contains("Estimated") || line.contains("Missing") || line.contains("Sunshine") ||
+          line.contains("yyyy") || line.contains("Lat") || line.contains("degC") || line.contains("Site closed") || line.contains("Site Closed") || line.contains("Siteclosed")) {
+
+        } else {
+          val regex = "\\s+".r
+          bw.write(station)
+          bw.write(",")
+          bw.write(regex.replaceAllIn(line.replaceAll("Change to Monckton Ave", ""), ",").replaceFirst(",", "").replaceAll("\\*", "").replaceAll("\\#", ""))
+          bw.newLine()
+        }
+
+      }
+      bw.close()
+    }
   }
 }
 
@@ -118,7 +115,7 @@ class Weather extends Serializable {
 
 
   /** Load postings from the given file */
-  def rawPostings(lines: RDD[String]): RDD[WeatherData] = {
+  def convertToWeatherData(lines: RDD[String]): RDD[WeatherData] = {
 
     lines.map(line => {
       val arr = line.split(",")
