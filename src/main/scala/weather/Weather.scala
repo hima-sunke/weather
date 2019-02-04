@@ -116,7 +116,7 @@ object app extends Weather {
 /** The parsing and means methods */
 class Weather extends Serializable {
 
-  /** Languages */
+  /** list of stations */
   val stations =
     List(
       "aberporth", "armagh", "ballypatrick", "bradford", "braemar", "camborne", "cambridge", "cardiff",
