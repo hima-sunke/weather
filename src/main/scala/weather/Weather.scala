@@ -47,16 +47,21 @@ object app extends Weather {
     val datasetAsWeatherData    = convertToWeatherData(datasetAsString.rdd)
     val dataFrame = datasetAsWeatherData.toDF()
 
+
+    /** Rank by stations by long they have been online(number of measures)  */
     rankByMeasures(dataFrame)
 
-
+    /** Rank stations by rainfall */
     rankByAverageRain(dataFrame)
 
+    /** Rank stations by Sunshine */
     rankByAverageSunshine(dataFrame)
 
+
+    /** when was the worse Rainfall */
     timeOfWorstRainfall(dataFrame)
 
-
+    /** wht are the averages for May across all stations */
     averageMayAllStations(dataFrame)
 
 
@@ -87,6 +92,9 @@ object app extends Weather {
     val rankTest1 = df1.withColumn("rank", rank().over(Window.orderBy($"totalMeasures".desc))).show()
   }
 
+
+
+  /** Cleansing data before loading into Data frames */
   private def createOriginalAndModifiedData = {
     for (station <- stations) {
 
