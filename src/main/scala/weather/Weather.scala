@@ -21,7 +21,7 @@ import scala.io.Source
 case class WeatherData(station : String, year: Int, month: Int, tmax: Option[Double], tmin: Option[Double], af: Option[Int], rain: Option[Double], sunshine: Option[Double]) extends Serializable
 
 
-/** The main class */
+/** The main class  */
 object app extends Weather {
 
   @transient lazy val spark: SparkSession =
