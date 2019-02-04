@@ -61,7 +61,7 @@ object app extends Weather {
     /** when was the worse Rainfall */
     timeOfWorstRainfall(dataFrame)
 
-    /** wht are the averages for May across all stations */
+    /** what are the averages for May across all stations */
     averageMayAllStations(dataFrame)
 
 
