@@ -52,17 +52,29 @@ object app extends Weather {
 
     rankByAverageRain(dataFrame)
 
-    val df3 = dataFrame.groupBy($"station").agg(avg($"sunshine").alias("avgSun")).select($"*")
-    val rankTest3 = df3.withColumn("rank",rank().over(Window.orderBy($"avgSun".desc))).show()
+    rankByAverageSunshine(dataFrame)
 
-    val df4 = dataFrame.groupBy($"station").agg(min($"rain").alias("rain")).select($"*")
-    val data_joined = dataFrame.join(df4, List("station", "rain")).show()
+    timeOfWorstRainfall(dataFrame)
 
 
-    val df5 = dataFrame.groupBy($"month").agg(avg($"rain").alias("rain"),avg($"sunshine").alias("sunshine")).where($"month" === 5).select($"*").show()
+    averageMayAllStations(dataFrame)
 
 
     spark.stop()
+  }
+
+  private def averageMayAllStations(dataFrame: DataFrame) = {
+    val df5 = dataFrame.groupBy($"month").agg(avg($"rain").alias("rain"), avg($"sunshine").alias("sunshine")).where($"month" === 5).select($"*").show()
+  }
+
+  private def timeOfWorstRainfall(dataFrame: DataFrame) = {
+    val df4 = dataFrame.groupBy($"station").agg(min($"rain").alias("rain")).select($"*")
+    val data_joined = dataFrame.join(df4, List("station", "rain")).show()
+  }
+
+  private def rankByAverageSunshine(dataFrame: DataFrame) = {
+    val df3 = dataFrame.groupBy($"station").agg(avg($"sunshine").alias("avgSun")).select($"*")
+    val rankTest3 = df3.withColumn("rank", rank().over(Window.orderBy($"avgSun".desc))).show()
   }
 
   private def rankByAverageRain(dataFrame: DataFrame) = {
@@ -101,7 +113,7 @@ object app extends Weather {
 }
 
 
-/** The parsing and kmeans methods */
+/** The parsing and means methods */
 class Weather extends Serializable {
 
   /** Languages */
